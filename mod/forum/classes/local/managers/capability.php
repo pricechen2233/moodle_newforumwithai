@@ -540,6 +540,26 @@ class capability {
         return $this->can_split_discussions($user) && $post->has_parent();
     }
 
+    //----------------------------------------------------------!
+    public function can_use_robot(stdClass $user, discussion_entity $discussion, post_entity $post): bool {
+        global $CFG;
+
+        if (!$CFG->forum_userobotreply) {
+            return false;
+        } else if ($post->is_private_reply()) {
+            // It is not possible to reply to a private reply.
+            return false;
+        } else if (!$this->can_view_post($user, $discussion, $post)) {
+            // If the user cannot view the post in the first place, the user should not be able to reply to the post.
+            return false;
+        } else if ($post->get_id() === $discussion->get_first_post_id()) {
+            return false;
+        }
+
+        return $this->can_post_in_discussion($user, $discussion);
+    }
+    //----------------------------------------------------------!
+
     /**
      * Can the user reply to the post in this discussion?
      *

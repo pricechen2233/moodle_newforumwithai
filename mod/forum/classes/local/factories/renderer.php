@@ -300,7 +300,8 @@ class renderer {
                     $exportedposts[0]->hasreplycount = true;
                     $exportedposts[0]->replycount = $postcount - 1;
                 }
-
+                // $outexportedposts = json_encode($exportedposts);
+                // echo "<script>console.log('renderout',$outexportedposts)</script>";
                 return $exportedposts;
             }
         );

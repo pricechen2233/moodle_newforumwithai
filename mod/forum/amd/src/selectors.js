@@ -38,6 +38,7 @@ define([], function() {
             forumSubject: "[data-region-content='forum-post-core-subject']",
             inpageCancelButton: "button[name='cancelbtn']",
             inpageReplyButton: "button",
+            robotlink: "[data-action='robot-link']",//.....
             inpageReplyLink: "[data-action='collapsible-link']",
             inpageReplyCancelButton: "[data-action='cancel-inpage-reply']",
             inpageReplyCreateButton: "[data-action='create-inpage-reply']",

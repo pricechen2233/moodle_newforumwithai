@@ -283,6 +283,14 @@ class url {
             'delete' => $post->get_id()
         ]);
     }
+    
+    //---------------------------------------------------------------!
+    public function get_reply_to_post_url_by_robot(post_entity $post): moodle_url {
+        return new moodle_url('/mod/forum/post.php', [
+            'robot' => $post->get_id()
+        ]);
+    }
+    //---------------------------------------------------------------!
 
     /**
      * Get the url to reply to a post.

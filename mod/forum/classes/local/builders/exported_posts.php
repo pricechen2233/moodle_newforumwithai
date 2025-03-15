@@ -187,8 +187,15 @@ class exported_posts {
                 $inlineattachments
             );
             ['posts' => $exportedgroupedposts] = (array) $postsexporter->export($this->renderer);
+
+            // $outexportedgroupedposts = json_encode($exportedgroupedposts);
+            // echo "<script>console.log('groupedposts_out',$outexportedgroupedposts)</script>";
+            
             $exportedposts = array_merge($exportedposts, $exportedgroupedposts);
         }
+
+        // $outexportedposts = json_encode($exportedposts);
+        // echo "<script>console.log('exported_posts_out',$outexportedposts)</script>";
 
         if (count($forums) == 1 && count($discussions) == 1) {
             // All of the posts belong to a single discussion in a single forum so

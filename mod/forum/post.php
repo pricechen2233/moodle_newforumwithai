@@ -26,7 +26,12 @@ require_once('../../config.php');
 require_once('lib.php');
 require_once($CFG->libdir.'/completionlib.php');
 
+use mod_forum\local\vaults\robot as robot_process;
+
 $reply   = optional_param('reply', 0, PARAM_INT);
+//-----------------------------!
+$robot   = optional_param('robot', 0, PARAM_INT);
+//-----------------------------!
 $forum   = optional_param('forum', 0, PARAM_INT);
 $edit    = optional_param('edit', 0, PARAM_INT);
 $delete  = optional_param('delete', 0, PARAM_INT);
@@ -43,6 +48,7 @@ $prefilledprivatereply = optional_param('privatereply', false, PARAM_BOOL);
 
 $PAGE->set_url('/mod/forum/post.php', array(
     'reply' => $reply,
+    'robot' => $robot,//--------------------------!
     'forum' => $forum,
     'edit'  => $edit,
     'delete' => $delete,
@@ -52,7 +58,7 @@ $PAGE->set_url('/mod/forum/post.php', array(
     'groupid' => $groupid,
 ));
 // These page_params will be passed as hidden variables later in the form.
-$pageparams = array('reply' => $reply, 'forum' => $forum, 'edit' => $edit);
+$pageparams = array('reply' => $reply, 'robot' => $robot, 'forum' => $forum, 'edit' => $edit);//--------------------!
 
 $sitecontext = context_system::instance();
 
@@ -282,8 +288,156 @@ if (!empty($forum)) {
 
     $post->groupid = ($discussion->groupid == -1) ? 0 : $discussion->groupid;
 
+    $strre = get_string('re', 'forum');
+    if (!(substr($post->subject, 0, strlen($strre)) == $strre)) {
+        $post->subject = $strre.' '.$post->subject;
+    }
+
     // Unsetting this will allow the correct return URL to be calculated later.
     unset($SESSION->fromdiscussion);
+
+} else if(!empty($robot)) {
+    // User is using the robot.
+
+    $parententity = $postvault->get_from_id($robot);
+    if (empty($parententity)) {
+        throw new \moodle_exception('invalidparentpostid', 'forum');
+    }
+
+    $discussionentity = $discussionvault->get_from_id($parententity->get_discussion_id());
+    if (empty($discussionentity)) {
+        throw new \moodle_exception('notpartofdiscussion', 'forum');
+    }
+
+    $forumentity = $forumvault->get_from_id($discussionentity->get_forum_id());
+    if (empty($forumentity)) {
+        throw new \moodle_exception('invalidforumid', 'forum');
+    }
+
+    $capabilitymanager = $managerfactory->get_capability_manager($forumentity);
+    $parent = $postdatamapper->to_legacy_object($parententity);
+    $discussion = $discussiondatamapper->to_legacy_object($discussionentity);
+    $forum = $forumdatamapper->to_legacy_object($forumentity);
+    $course = $forumentity->get_course_record();
+    $modcontext = $forumentity->get_context();
+    $coursecontext = context_course::instance($course->id);
+
+    if (!$cm = get_coursemodule_from_instance("forum", $forum->id, $course->id)) {
+        throw new \moodle_exception('invalidcoursemodule');
+    }
+
+    // Ensure lang, theme, etc. is set up properly. MDL-6926.
+    $PAGE->set_cm($cm, $course, $forum);
+
+    if (!$capabilitymanager->can_use_robot($USER, $discussionentity, $parententity)) {
+        if (!isguestuser()) {
+            if (!is_enrolled($coursecontext)) {  // User is a guest here!
+                $SESSION->wantsurl = qualified_me();
+                $SESSION->enrolcancel = get_local_referer(false);
+                redirect(new moodle_url('/enrol/index.php', array('id' => $course->id,
+                    'returnurl' => '/mod/forum/view.php?f=' . $forum->id)),
+                    get_string('youneedtoenrol'));
+            }
+
+            // The forum has been locked. Just redirect back to the discussion page.
+            if (forum_discussion_is_locked($forum, $discussion)) {
+                redirect(new moodle_url('/mod/forum/discuss.php', array('d' => $discussion->id)));
+            }
+        }
+        throw new \moodle_exception('nopostforum', 'forum');
+    }
+
+    // Make sure user can post here.
+    if (isset($cm->groupmode) && empty($course->groupmodeforce)) {
+        $groupmode = $cm->groupmode;
+    } else {
+        $groupmode = $course->groupmode;
+    }
+    if ($groupmode == SEPARATEGROUPS and !has_capability('moodle/site:accessallgroups', $modcontext)) {
+        if ($discussion->groupid == -1) {
+            throw new \moodle_exception('nopostforum', 'forum');
+        } else {
+            if (!groups_is_member($discussion->groupid)) {
+                throw new \moodle_exception('nopostforum', 'forum');
+            }
+        }
+    }
+
+    if (!$cm->visible and !has_capability('moodle/course:viewhiddenactivities', $modcontext)) {
+        throw new \moodle_exception("activityiscurrentlyhidden");
+    }
+
+    if ($parententity->is_private_reply()) {
+        throw new \moodle_exception('cannotreplytoprivatereply', 'forum');
+    }
+
+    require_login($course, false, $cm);
+
+    $replycount = $postvault->get_reply_count_for_post_id_in_discussion_id(
+        $USER, $parententity->get_id(), $discussionentity->get_id(), true);
+    
+    // 定义机器人回复类
+    $myrobot = new robot_process($parententity, $discussionentity, $forumentity);
+    // 启动机器回复
+    $robotresponse = $myrobot->call_robot($parent,$discussion,$forum);
+
+    // Load up the $post variable.
+    $post = new stdClass();
+    $post->course      = $course->id;
+    $post->forum       = $forum->id;
+    $post->discussion  = $parent->discussion;
+    $post->parent      = $parent->id;
+    $post->subject     = $subject ? $subject : $parent->subject;
+    $post->userid      = $USER->id;
+    $post->parentpostauthor = $parent->userid;
+    $post->message     = $robotresponse;
+    $canreplyprivately = $capabilitymanager->can_reply_privately_to_post($USER, $parententity);
+
+    $post->groupid = ($discussion->groupid == -1) ? 0 : $discussion->groupid;
+
+    $strre = 'Robot reply to me:';
+    $pattern = '/Subject:([\s\S]*?)Message:/';
+    if (!(substr($post->subject, 0, strlen($strre)) == $strre)) {
+        if (preg_match($pattern, $post->message, $matches)) {
+            $post->subject = $matches[1];
+        }
+        $post->subject = $strre.' '.$post->subject;
+    }
+
+    // Unsetting this will allow the correct return URL to be calculated later.
+    unset($SESSION->fromdiscussion);
+
+    // 将机器返回数据写入
+    try {
+        $newpostid = forum_add_new_post($post,$forum);
+
+        if ($forumentity->get_type() == 'single') {
+            // Single discussion forums are an exception.
+            // We show the forum itself since it only has one discussion thread.
+            $discussionurl = $urlfactory->get_forum_view_url_from_forum($forumentity);
+        } else {
+            $discussionurl = $urlfactory->get_discussion_view_url_from_discussion($discussionentity);
+        }
+
+        redirect(
+            forum_go_back_to($discussionurl),
+            get_string('eventrobotreplyed', 'mod_forum'),
+            null,
+            \core\output\notification::NOTIFY_SUCCESS
+        );
+
+    } catch (Exception $e) {
+        redirect(
+            $urlfactory->get_discussion_view_url_from_discussion($discussionentity),
+            $e->getMessage(),
+            null,
+            \core\output\notification::NOTIFY_ERROR
+        );
+    }
+
+    echo $OUTPUT->footer();
+    die;
+    //...........................!
 
 } else if (!empty($edit)) {
     // User is editing their own post.

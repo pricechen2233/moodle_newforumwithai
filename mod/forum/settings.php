@@ -138,6 +138,18 @@ if ($ADMIN->fulltree) {
 
     $settings->add(new admin_setting_configcheckbox('forum_enabletimedposts', get_string('timedposts', 'forum'),
                        get_string('configenabletimedposts', 'forum'), 1));
+    
+    // 设置是否调用Robot按钮，默认不调用
+    $settings->add(new admin_setting_configcheckbox('forum_userobotreply', get_string('userobotreply', 'forum'),
+                       get_string('configuserobotreply', 'forum'), 0));
+    
+    // 设置API访问接口，用户可以填入
+    $options = array(
+        0 => get_string('gpt3model', 'forum'),
+        1 => get_string('gpt4ominimodel', 'forum')
+    );
+    $settings->add(new admin_setting_configselect('forum_setmodel', get_string('setmodel', 'forum'),
+                       get_string('configsetmodel', 'forum'), 0, $options));
 
     $settings->add(new admin_setting_heading('defaultsettings', get_string('announcementsettings', 'mod_forum'),
                         get_string('announcementsettings_help', 'mod_forum')));

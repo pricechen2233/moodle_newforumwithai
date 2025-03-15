@@ -158,6 +158,11 @@ class post extends exporter {
                         'null' => NULL_ALLOWED,
                         'description' => 'Whether the user can split the post',
                     ],
+                    'robot' => [
+                        'type' => PARAM_BOOL,
+                        'null' => NULL_ALLOWED,
+                        'description' => 'Whether the user can use the robot',
+                    ],//-------------------------!
                     'reply' => [
                         'type' => PARAM_BOOL,
                         'null' => NULL_ALLOWED,
@@ -233,6 +238,13 @@ class post extends exporter {
                         'default' => null,
                         'null' => NULL_ALLOWED
                     ],
+                    'robot' => [
+                        'description' => 'The URL used to start a robot reply',
+                        'type' => PARAM_URL,
+                        'optional' => true,
+                        'default' => null,
+                        'null' => NULL_ALLOWED
+                    ],//------------------------!
                     'reply' => [
                         'description' => 'The URL used to reply to the post',
                         'type' => PARAM_URL,
@@ -385,6 +397,9 @@ class post extends exporter {
         $canedit = $capabilitymanager->can_edit_post($user, $discussion, $post);
         $candelete = $capabilitymanager->can_delete_post($user, $discussion, $post);
         $cansplit = $capabilitymanager->can_split_post($user, $discussion, $post);
+        //---------------------------------------!
+        $canrobot = $capabilitymanager->can_use_robot($user, $discussion, $post);
+        //---------------------------------------!
         $canreply = $capabilitymanager->can_reply_to_post($user, $discussion, $post);
         $canexport = $capabilitymanager->can_export_post($user, $post);
         $cancontrolreadstatus = $capabilitymanager->can_manually_control_post_read_status($user);
@@ -398,6 +413,9 @@ class post extends exporter {
         $editurl = $canedit ? $urlfactory->get_edit_post_url_from_post($forum, $post) : null;
         $deleteurl = $candelete ? $urlfactory->get_delete_post_url_from_post($post) : null;
         $spliturl = $cansplit ? $urlfactory->get_split_discussion_at_post_url_from_post($post) : null;
+        //-----------------------------------------!
+        $roboturl = $canrobot || $canselfenrol ? $urlfactory->get_reply_to_post_url_by_robot($post) : null;
+        //-----------------------------------------!
         $replyurl = $canreply || $canselfenrol ? $urlfactory->get_reply_to_post_url_from_post($post) : null;
         $exporturl = $canexport ? $urlfactory->get_export_post_url_from_post($post) : null;
         $markasreadurl = $cancontrolreadstatus ? $urlfactory->get_mark_post_as_read_url_from_post($post) : null;
@@ -427,6 +445,12 @@ class post extends exporter {
             $timecreated = null;
         }
 
+        $replysubject = $subject;
+        $strre = get_string('re', 'forum');
+        if (!(substr($replysubject, 0, strlen($strre)) == $strre)) {
+            $replysubject = "{$strre} {$replysubject}";
+        }
+
         $showwordcount = $forum->should_display_word_count();
         if ($showwordcount) {
             $wordcount = $post->get_wordcount() ?? count_words($message);
@@ -439,7 +463,7 @@ class post extends exporter {
         return [
             'id' => $post->get_id(),
             'subject' => $subject,
-            'replysubject' => $subject,
+            'replysubject' => $replysubject,
             'message' => $message,
             'messageformat' => $post->get_message_format(),
             'author' => $exportedauthor,
@@ -459,6 +483,7 @@ class post extends exporter {
                 'edit' => $canedit,
                 'delete' => $candelete,
                 'split' => $cansplit,
+                'robot' => $canrobot,//------------------------!
                 'reply' => $canreply,
                 'export' => $canexport,
                 'controlreadstatus' => $cancontrolreadstatus,
@@ -472,6 +497,7 @@ class post extends exporter {
                 'edit' => $editurl ? $editurl->out(false) : null,
                 'delete' => $deleteurl ? $deleteurl->out(false) : null,
                 'split' => $spliturl ? $spliturl->out(false) : null,
+                'robot' => $roboturl ? $roboturl->out(false) : null,//----------------------------!
                 'reply' => $replyurl ? $replyurl->out(false) : null,
                 'export' => $exporturl && $exporturl ? $exporturl->out(false) : null,
                 'markasread' => $markasreadurl ? $markasreadurl->out(false) : null,

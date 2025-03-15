@@ -109,6 +109,8 @@ define([
             var mode = modeSelector.length ? parseInt(modeSelector.get(0).value) : null;
             var newid;
 
+            alert("!!!!!!");
+
             if (message.length) {
                 showSubmitButtonLoadingIcon(submitButton);
                 allButtons.prop('disabled', true);
@@ -193,7 +195,7 @@ define([
         root.on('click', Selectors.post.inpageCancelButton, function(e) {
             // Tell formchangechecker to reset the form state.
             FormChangeChecker.resetFormDirtyState(e.currentTarget);
-        });
+        });  
     };
 
     return {
